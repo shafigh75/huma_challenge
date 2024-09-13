@@ -7,7 +7,7 @@ x-common-secrets: &common-secrets
 
 x-mongo-config: &mongo-config
   restart: always
-  image: mongo:latest
+  image: mongo:4.4.16
   secrets:
     - mongodb_root_username
     - mongodb_root_password
