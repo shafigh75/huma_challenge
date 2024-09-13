@@ -1,45 +1,75 @@
 version: '3.8'
 
+x-common-secrets: &common-secrets
+  secrets:
+    - mongodb_root_username
+    - mongodb_root_password
+
+x-mongo-config: &mongo-config
+  restart: always
+  image: mongo:latest
+  secrets:
+    - mongodb_root_username
+    - mongodb_root_password
+  environment:
+    - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongodb_root_username
+    - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongodb_root_password
+
 services:
   auth_service:
+    <<: *common-secrets
+    restart: always
     image: authentiq
     container_name: authentiq-app
     build:
       context: ./auth
     ports:
       - "${AUTH_PORT}:${AUTH_PORT}"
-    secrets:
-      - mongodb_root_username
-      - mongodb_root_password
-    environment:
-      - AUTHENTIQ_DB_USERNAME_FILE=/run/secrets/mongodb_root_username
-      - AUTHENTIQ_DB_PASSWORD_FILE=/run/secrets/mongodb_root_password
     depends_on:
-      - mongodb
-    restart: always
-
-  mongodb:
-    image: mongo:latest
-    container_name: authentiq-db
-    restart: always
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongodb_root_username
-      - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongodb_root_password
+      - mongodb1
     volumes:
       - type: bind
-        source: ./data
+        source: ./auth_data
         target: /data/db
-    secrets:
-      - mongodb_root_username
-      - mongodb_root_password
+
+  account_service:
+    <<: *common-secrets
+    restart: always
+    image: account_service
+    container_name: account-app
+    build:
+      context: ./account-manager
+    ports:
+      - "${ACCOUNT_PORT}:${ACCOUNT_PORT}"
+    depends_on:
+      - mongodb2
+    volumes:
+      - type: bind
+        source: ./account_data
+        target: /data/db
+
+  mongodb1:
+    <<: *mongo-config
+    container_name: authentiq-db
+    volumes:
+      - type: bind
+        source: ./auth_data
+        target: /data/db
     ports:
       - "27017:27017"
 
-      
+  mongodb2:
+    <<: *mongo-config
+    container_name: account-db
+    volumes:
+      - type: bind
+        source: ./account_data
+        target: /data/db
+    ports:
+      - "27018:27017"
+
 secrets:
   mongodb_root_username:
     file: mongodb_root_username.txt
   mongodb_root_password:
     file: mongodb_root_password.txt
-
-
