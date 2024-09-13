@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 x-common-secrets: &common-secrets
   secrets:
@@ -6,7 +6,6 @@ x-common-secrets: &common-secrets
     - mongodb_root_password
 
 x-mongo-config: &mongo-config
-  restart: always
   image: mongo:4.4.16
   secrets:
     - mongodb_root_username
@@ -14,15 +13,20 @@ x-mongo-config: &mongo-config
   environment:
     - MONGO_INITDB_ROOT_USERNAME_FILE=/run/secrets/mongodb_root_username
     - MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongodb_root_password
+  deploy:
+    mode: replicated
+    replicas: 1   # Only one replica of MongoDB per service, not distributed
 
 services:
   traefik:
     image: traefik:v2.9
-    container_name: traefik
-    restart: always
     ports:
-      - "80:80"     # For HTTP traffic
-      - "443:443"   # For HTTPS traffic
+    - target: 80
+      published: 80
+      mode: host 
+    - target: 443
+      published: 443
+      mode: host
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -31,54 +35,55 @@ services:
       - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
       - "--certificatesresolvers.myresolver.acme.email=shafigh75@gmail.com"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--providers.docker.swarmMode=true" # Enable swarm mode
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - "./letsencrypt:/letsencrypt"
-    labels:
-      - "traefik.http.routers.api.rule=Host(`traefik.geek4geeks.ir`)"
-      - "traefik.http.routers.api.service=api@internal"
-      - "traefik.http.routers.api.entrypoints=websecure"
-      - "traefik.http.routers.api.tls.certresolver=myresolver"
+    deploy:
+      placement:
+        constraints: [node.role == manager]  # Run only on manager node
+      labels:
+        - "traefik.http.routers.api.rule=Host(`traefik.geek4geeks.ir`)"
+        - "traefik.http.routers.api.service=api@internal"
+        - "traefik.http.routers.api.entrypoints=websecure"
+        - "traefik.http.routers.api.tls.certresolver=myresolver"
 
-  auth_service:
+
+  auth:
     <<: *common-secrets
-    restart: always
-    image: authentiq
-    container_name: authentiq-app
-    build:
-      context: ./auth
-    labels:
-      - "traefik.http.routers.auth.rule=Host(`auth.geek4geeks.ir`)"
-      - "traefik.http.services.auth.loadbalancer.server.port=${AUTH_PORT}"
-      - "traefik.http.routers.auth.entrypoints=websecure"
-      - "traefik.http.routers.auth.tls.certresolver=myresolver"
+    image: 141.11.187.140:5000/auth
+    deploy:
+      replicas: 2  # One instance on each node
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.http.routers.auth.rule=Host(`auth.geek4geeks.ir`)"
+        - "traefik.http.services.auth.loadbalancer.server.port=3000"
+        - "traefik.http.routers.auth.entrypoints=websecure"
+        - "traefik.http.routers.auth.tls.certresolver=myresolver"
     depends_on:
-      - mongodb1
-    volumes:
-      - type: bind
-        source: ./auth_data
-        target: /data/db
+      - authentiq-db
 
-  account_service:
+  account:
     <<: *common-secrets
-    restart: always
-    image: account_service
-    container_name: account-app
-    build:
-      context: ./account-manager
-    labels:
-      - "traefik.http.routers.account.rule=Host(`usermanager.geek4geeks.ir`)"
-      - "traefik.http.services.account.loadbalancer.server.port=${ACCOUNT_PORT}"
-      - "traefik.http.routers.account.entrypoints=websecure"
-      - "traefik.http.routers.account.tls.certresolver=myresolver"
+    image: 141.11.187.140:5000/accounter
+    deploy:
+      replicas: 2  # One instance on each node
+      placement:
+        max_replicas_per_node: 1
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.http.routers.account.rule=Host(`usermanager.geek4geeks.ir`)"
+        - "traefik.http.services.account.loadbalancer.server.port=6000"
+        - "traefik.http.routers.account.entrypoints=websecure"
+        - "traefik.http.routers.account.tls.certresolver=myresolver"
     depends_on:
-      - mongodb2
-    volumes:
-      - type: bind
-        source: ./account_data
-        target: /data/db
+      - account-db
 
-  mongodb1:
+  authentiq-db:
     <<: *mongo-config
     container_name: authentiq-db
     volumes:
@@ -87,8 +92,12 @@ services:
         target: /data/db
     ports:
       - "27017:27017"
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager  # Only on manager node
 
-  mongodb2:
+  account-db:
     <<: *mongo-config
     container_name: account-db
     volumes:
@@ -97,9 +106,31 @@ services:
         target: /data/db
     ports:
       - "27018:27017"
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager  # Only on manager node
+
+
+  visualizer:
+    image: dockersamples/visualizer:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.http.routers.visualizer.rule=Host(`visualizer.geek4geeks.ir`)"
+        - "traefik.http.services.visualizer.loadbalancer.server.port=8080"
+        - "traefik.http.routers.visualizer.entrypoints=websecure"
+        - "traefik.http.routers.visualizer.tls.certresolver=myresolver"
 
 secrets:
   mongodb_root_username:
     file: mongodb_root_username.txt
   mongodb_root_password:
     file: mongodb_root_password.txt
+
