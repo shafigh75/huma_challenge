@@ -91,7 +91,15 @@ With those four steps, we’ve successfully set up a local Docker registry, buil
   ```
 
 ---
+🎯 Accessing Your Services
 
+Once our services are deployed, we can test and monitor them using the following URLs:
+- **[Auth Service](https://auth.geek4geeks.ir/authentiq/v1/heartbeat)**: Test the authentication service here.
+- **[Account Service](https://usermanager.geek4geeks.ir/accountico/heartbeat)**: Test the account management service.
+- **[Visualizer Panel](https://visualizer.geek4geeks.ir)**: Access the Docker Swarm Visualizer panel to see what's happening under the hood.
+
+
+---
 Thanks for sailing the Swarm seas with me! 🐳
 
 - authored by: Mohammad Shafighi
