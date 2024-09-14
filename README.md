@@ -101,7 +101,7 @@ Once our services are deployed, we can test and monitor them using the following
 
 ---
 ### NOTE about visualizer:
-for convinience, I commented the ipWhitelist section in docker-compose file. but we can't leave our lovely panel unsecure now can we? 
+for convenience, I commented the ipWhitelist section in docker-compose file. but we can't leave our lovely panel unsecure now can we? 
 so i added basic Auth functionality. this is the credentials: 
 ```bash
 USERNAME: mohammad
