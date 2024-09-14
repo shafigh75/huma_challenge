@@ -114,8 +114,7 @@ services:
 
   visualizer:
     image: dockersamples/visualizer:latest
-    ports:
-      - "8080:8080"
+    restart: unless-stopped
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     deploy:
@@ -127,6 +126,10 @@ services:
         - "traefik.http.services.visualizer.loadbalancer.server.port=8080"
         - "traefik.http.routers.visualizer.entrypoints=websecure"
         - "traefik.http.routers.visualizer.tls.certresolver=myresolver"
+        # - "traefik.http.middlewares.my-ipwhitelist.ipwhitelist.sourcerange=192.168.1.0/24,10.0.0.0/8,127.0.0.1/32,::1/128,83.123.78.253/32"
+        # - "traefik.http.routers.visualizer.middlewares=my-ipwhitelist@docker"
+        - "traefik.http.middlewares.my-auth.basicauth.users=mohammad:$$2y$$05$$7KRcmYEuRmELxSlLjLFpdu1meU.zRptBiyoGB0x8Qt6sMz8/DxngO"
+        - "traefik.http.routers.visualizer.middlewares=my-auth@docker"
 
 secrets:
   mongodb_root_username:
